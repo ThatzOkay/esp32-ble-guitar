@@ -29,3 +29,7 @@ Transform toy guitar into a Clone Hero controller with ESP32
 **After:**
 
 ![](docs/guitar-after.jpg)
+
+**Credits**
+[1dle](https://github.com/1dle/esp32-ble-guitar) Original controller code for guitar
+[mnkhouri](https://gist.github.com/mnkhouri/e6ac28bc48560b31890ddb61cc7f7a87#file-gh5_neck_comm-ino) I2C code to communicate with the neck
