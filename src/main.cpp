@@ -46,7 +46,6 @@ void setup()
 
   bleGamepad = new BleGamepad("deli's guitar", "DELI");
 
-  
   //Serial.println("Starting BLE work!");
   bleGamepad->setAutoReport(false);
   bleGamepad->setControllerType(CONTROLLER_TYPE_GAMEPAD);  //CONTROLLER_TYPE_JOYSTICK, CONTROLLER_TYPE_GAMEPAD (DEFAULT), CONTROLLER_TYPE_MULTI_AXIS
@@ -351,12 +350,12 @@ void loop(){
     }
 
     
-  if (SERIAL_EN) { 
-    loopCounter++;
-    // Only print out the button state periodically, so polling stays fast
-    if (loopCounter % 25 == 0) {
-      printButtons(neckButtons);  
+    if (SERIAL_EN) { 
+      loopCounter++;
+      // Only print out the button state periodically, so polling stays fast
+      if (loopCounter % 25 == 0) {
+        printButtons(neckButtons);  
+      }
     }
-  }
   }
 }
