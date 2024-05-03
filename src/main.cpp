@@ -12,8 +12,6 @@
 
 BleGamepad *bleGamepad = nullptr;
 
-const int pinI2CPower = 26;
-
 const byte no_buttons = 13;
 byte buttons[no_buttons] = {13, 15, 14, 27, 26, 33, 32, 16, 17, 18, 19, 23, 24};
 const byte led = 25;
@@ -37,9 +35,6 @@ typedef struct {
 void setup() 
 {
   Wire.begin();
-  
-  pinMode(pinI2CPower, OUTPUT);
-  digitalWrite(pinI2CPower, HIGH);
   
   //init button inputs.
   for(byte i = 0; i < no_buttons; i++){
