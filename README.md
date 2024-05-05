@@ -13,8 +13,8 @@ Transform toy guitar into a Clone Hero controller with ESP32
 | GPIO22     | SCL                  |
 | 3.3V       | V pin on neck        |
 | GPIO25     | LED on DPAD          |
-| GPIO23     | Start                |
-| GPIO24     | Select               |
+| GPIO26     | Start                |
+| GPIO23     | Select               |
 | GPIO19     | DPAD RIGHT           |
 | GPIO18     | DPAD LEFT            |
 | GPIO17     | DPAD DOWN            |
