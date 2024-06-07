@@ -2,10 +2,11 @@
 #include <Wire.h>
 #include "esp_bt.h"
 #include <BleGamepad.h>
-
-#define SERIAL_EN false            // Enable serial output
-#define VERBOSE false              // Verbose serial output
-#define ENABLE_ACCELEROMETER false // Enable accelerometer output
+#include <WiFi.h>
+#include <ESPmDNS.h>
+#include <WiFiUdp.h>
+#include <ArduinoOTA.h>
+#include "config.h"
 
 #define numOfButtons 64
 #define numOfHatSwitches 0
@@ -21,6 +22,7 @@ const byte no_buttons = no_neck_buttons + no_gitadora_up_down + no_physical_butt
 byte physical_buttons[no_physical_buttons] = {16, 17, 18, 19, 23, 26, 33, 32};
 const byte led = 25;
 const byte whammy = 36;
+const byte tilt = 14;
 
 const byte pot_samples = 5;
 
@@ -64,7 +66,12 @@ void setup()
 
   pinMode(led, OUTPUT);
 
-  bleGamepad = new BleGamepad("deli's guitar", "DELI");
+  if (ENABLE_TILT)
+  {
+    pinMode(tilt, INPUT);
+  }
+
+  bleGamepad = new BleGamepad(DEVICE_NAME, MANUFACTURER);
 
   // Serial.println("Starting BLE work!");
   bleGamepad->setAutoReport(false);
@@ -462,6 +469,89 @@ bool initializeMPU()
   return true;
 }
 
+void initOTA()
+{
+  if (SERIAL_EN)
+  {
+    Serial.println("Enabling OTA");
+  }
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(SSID, PASSWORD);
+  while (WiFi.waitForConnectResult() != WL_CONNECTED)
+  {
+    if (SERIAL_EN)
+    {
+      Serial.println("Connection Failed! Rebooting...");
+    }
+    delay(5000);
+    ESP.restart();
+  }
+  
+  ArduinoOTA.setHostname(HOSTNAME);
+
+  ArduinoOTA.onStart([]() {
+    String type;
+    if (ArduinoOTA.getCommand() == U_FLASH)
+    {
+      type = "sketch";
+    }
+    else
+    {
+      type = "filesystem";
+    }
+
+    if (SERIAL_EN)
+    {
+      Serial.println("Start updating " + type);
+    }
+  }).onEnd([]() {
+    if (SERIAL_EN)
+    {
+      Serial.println("\nEnd");
+    }
+  }).onProgress([](unsigned int progress, unsigned int total) {
+    if (SERIAL_EN)
+    {
+      Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+    }
+  }).onError([](ota_error_t error) {
+    if (SERIAL_EN)
+    {
+      Serial.printf("Error[%u]: ", error);
+      if (error == OTA_AUTH_ERROR)
+      {
+        Serial.println("Auth Failed");
+      }
+      else if (error == OTA_BEGIN_ERROR)
+      {
+        Serial.println("Begin Failed");
+      }
+      else if (error == OTA_CONNECT_ERROR)
+      {
+        Serial.println("Connect Failed");
+      }
+      else if (error == OTA_RECEIVE_ERROR)
+      {
+        Serial.println("Receive Failed");
+      }
+      else if (error == OTA_END_ERROR)
+      {
+        Serial.println("End Failed");
+      }
+    }
+  });
+
+  ArduinoOTA.begin();
+
+  if (SERIAL_EN)
+  {
+    Serial.println("OTA ready");
+    Serial.print("IP address: ");
+    Serial.println(WiFi.localIP());
+  }
+}
+
+bool enableOTA = false;
 bool isInitialized = false;
 unsigned long lastChange = 0;
 unsigned int loopCounter = 0; // Only used to control how often debug output is printed
@@ -480,6 +570,33 @@ void loop()
       Serial.println("Not yet initialized");
     }
 
+    // if more then 3 buttons are pressed at the sae timme
+    int pressedButtons = 0;
+    for (byte i = 0; i < no_physical_buttons; i++)
+    {
+      if (digitalRead(physical_buttons[i]) == LOW)
+      {
+        pressedButtons++;
+      }
+    }
+
+    if (pressedButtons >= 3)
+    {
+      enableOTA = true;
+    }
+
+    if (enableOTA)
+    {
+      if (SERIAL_EN)
+      {
+        Serial.println("Enabling OTA");
+      }
+      initOTA();
+      isInitialized = true;
+      return;
+    }
+
+
     bool neckInitialized = initializeNeck();
 
     bool mpuInitialized = true;
@@ -493,6 +610,14 @@ void loop()
     {
       return;
     }
+
+    isInitialized = true;
+  }
+
+  if (enableOTA)
+  {
+    ArduinoOTA.handle();
+    return;
   }
 
   if (SERIAL_EN && VERBOSE)
@@ -584,7 +709,7 @@ void loop()
 
       int16_t pitchDifference = accelerometer.pitch - prevPitch;
 
-      if (pitchDifference > 1000)
+      if (pitchDifference > ACCELEROMETER_THRESHOLD)
       {
         currentButtonStates[5] = LOW;
       }
@@ -593,7 +718,7 @@ void loop()
         currentButtonStates[5] = HIGH;
       }
 
-      if (pitchDifference < -1000)
+      if (pitchDifference < -ACCELEROMETER_THRESHOLD)
       {
         currentButtonStates[6] = LOW;
       }
@@ -605,6 +730,31 @@ void loop()
       prevPitch = accelerometer.pitch;
     }
 
+    if (ENABLE_TILT)
+    {
+      uint16_t currentTilt = digitalRead(tilt);
+
+      if (currentTilt == LOW)
+      {
+        currentButtonStates[5] = LOW;
+      }
+      else
+      {
+        currentButtonStates[5] = HIGH;
+      }
+
+      // if (delta < -TILT_THRESHOLD)
+      // {
+      //   currentButtonStates[6] = LOW;
+      // }
+      // else
+      // {
+      //   currentButtonStates[6] = HIGH;
+      // }
+
+      // prevPitch = currentTilt;
+    }
+
     for (byte i = 0; i < no_buttons; i++)
     {
       int begin_physical = no_neck_buttons + no_gitadora_up_down - 1;
@@ -612,7 +762,7 @@ void loop()
       // itearate through every input buttons
       if (i > begin_physical)
       {
-        currentButtonStates[i] = digitalRead(i);
+        currentButtonStates[i] = digitalRead(physical_buttons[i - begin_physical - 1]);
       }
 
       if (currentButtonStates[i] != previousButtonStates[i])
